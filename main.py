@@ -11,13 +11,13 @@ import os;
 import cv2;
 import matlab.engine;
 import io;
-import tqdm.tqdm;
+from tqdm import tqdm;
 import utils.utils as ut;
 import numpy as np;
 
 
 if __name__ == "__main__":
-    #Load the hourglass model
+    print("Loading hourglass model...")
     hg_model = hg.load_model(cf.hg_dir);
     
     #Get a list of images to process as frames
@@ -32,44 +32,56 @@ if __name__ == "__main__":
     def get_frame(path):
         return cv2.imread(datapath + path);
     
-    #Get the keypoints for each frame
+    print("Getting keypoints for each frame...");
     kpss = hg.get_kps(hg_model,iter(imagelist),nImg,get_frame);
     
-    ############ ^^^ SORTED CODE  ^^^ ##########################
-    ############ vvv CODE TO SORT vvv ##########################
-    
-    os.chdir("C:\\Users\\dan\\Documents\\HWU\\MSc\\Project\\monocap-master");
-    
+    print("Converting keypoints to heatmaps...");
+    hms = hg.gen_heatmaps(kpss, 256, 64);
+        
+    print("Starting MATLAB engine...");
     eng = matlab.engine.start_matlab();
     out = io.StringIO();
     err = io.StringIO();
+    eng.cd("C:\\Users\\dan\\Documents\\HWU\\MSc\\Project\\monocap-master",nargout=0);
+    eng.startup(nargout=0);
     
-    images = [];
-    hms = [];
+    print("Converting heatmaps to MATLAB format...")
+    mlhms = [];
+    for hm in hms:
+        mlhm = np.transpose(hm,(1,2,0));
+        mlhms.append(np.expand_dims(mlhm,3));
+    mlhms = matlab.single(np.concatenate(mlhms,axis=3).tolist());
     
-    for image in tqdm(imagelist):
-        img = cv2.imread(datapath + image);
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB);
-        images.append(img);
-        hm = ut.read_heatmap(datapath + image[:-3] + "h5");
-        hms.append(np.expand_dims(hm,3));
+    print("Loading pose dictionary...");
+    B = eng.getOutput();
+    bDict = {'B':B};
     
-    mlhms = matlab.single(np.concatenate(hms,axis=3).tolist());
-    
-    bDict = eng.getOutput();
-    
+    print("Calculating pose using MATLAB code...");
     output = eng.PoseFromVideo('heatmap',mlhms,'dict',bDict,stdout=out,stderr=err)
     
+    print("Extracting 2D and 3D pose estimates...");
     preds_2d = [];
     preds_3d = [];
     
-    center = matlab.double([int(len(images[0][0])/2),int(len(images[0][1])/2)],(1,2));
-    scale = matlab.double([len(images[0][0])/200],(1,1));
+    c,s = ut.calc_cent_scale(get_frame(imagelist[0]));
     
-    for i in tqdm(range(0,nImg)):
+    center = matlab.double([list(c)],(1,2));
+    scale = matlab.double([s],(1,1));
+    
+    for i in range(0,nImg):
         preds_2d.append(eng.transformMPII(output["W_final"][2*i:2*i + 2],center,scale,matlab.double([len(hm[0]),len(hm[1])],(1,2)),1));
         preds_3d.append(output["S_final"][3*i:3*i + 3]);
+        
+    print("Converting estimates to Python format...");
+    preds_2d = np.array(preds_2d);
+    preds_3d = np.array(preds_3d);
     
+    preds_2d = preds_2d.swapaxes(1, 2);
+    preds_3d = preds_3d.swapaxes(1, 2);
+    
+    ############ ^^^ SORTED CODE  ^^^ ##########################
+    ############ vvv CODE TO SORT vvv ##########################
+"""    
     out = cv2.VideoWriter('..\\videoOut4.mp4',cv2.VideoWriter_fourcc(*'mp4v'), 12, (256,256));
     
     for i in tqdm(range(0,nImg)):
@@ -93,21 +105,6 @@ if __name__ == "__main__":
     out.release();
     cv2.destroyAllWindows();
     
-    conKps = [ut.convert_keypoints(kps,256,64) for kps in kpss];
-    
-    from data.MPII.dp import GenerateHeatmap as GH
-    
-    hmg = GH(64,16);
-    
-    hms = [hmg(kps) for kps in conKps];
-    
-    for i,hm in tqdm(enumerate(hms)):
-        kps = kpss[i];
-        for j,m in enumerate(hm):
-            p = kps[j][2];
-            if j not in [9,10,11,12,13,14,15]: p = 0;
-            m *= p;
-    
     import h5py;
     
     for i,hm in tqdm(enumerate(hms)):
@@ -116,3 +113,4 @@ if __name__ == "__main__":
         f = h5py.File(datapath + '\\new\\' + fn, 'w');
         ds = f.create_dataset('heatmap',data=hm);
         f.close();
+"""

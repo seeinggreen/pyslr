@@ -80,21 +80,23 @@ def get_do(func,config):
     return ds;"""
 
 def convert_keypoints(kps,inSize,outSize):
+    conkps = np.array(kps);
+    
     scale = inSize / outSize;    
-    for kp in kps:
+    for kp in conkps:
         kp[0] /= scale;
         kp[1] /= scale;
         
-        kp[0] = min(kp[0],outSize);
+        kp[0] = min(kp[0],outSize - 1);
         kp[0] = max(0,kp[0]);
         
-        kp[1] = min(kp[1],outSize);
+        kp[1] = min(kp[1],outSize - 1);
         kp[1] = max(0,kp[1]);
         
         kp[0] = int(kp[0]);
         kp[1] = int(kp[1]);
         
-    return np.array([kps]);
+    return np.array([conkps]);
 
 def gen_heatmaps(kpss,in_size,out_size):
     conKps = [convert_keypoints(kps,in_size,out_size) for kps in kpss];
@@ -107,7 +109,7 @@ def gen_heatmaps(kpss,in_size,out_size):
         kps = kpss[i];
         for j,m in enumerate(hm):
             p = kps[j][2];
-            if j not in [9,10,11,12,13,14,15]: p = 0;
+            #if j not in [9,10,11,12,13,14,15]: p = 0;
             m *= p;
             
     return hms;

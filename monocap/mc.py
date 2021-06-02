@@ -58,3 +58,8 @@ def get_bone_data(eng):
         new_b[i] = hm_to_mp(p);
     b_dict['B'] = matlab.double(new_b.tolist());
     return b_dict;
+
+def get_3d_points(preds_3d):
+    for i,p in enumerate(preds_3d):
+        preds_3d[i] = preds_3d[i] - preds_3d[i].mean(0)*np.ones((16,1));
+    return preds_3d;

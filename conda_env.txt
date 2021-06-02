@@ -1,0 +1,14 @@
+conda create --name pyslr python=3.8
+conda activate pyslr
+conda install console_shortcut
+conda install dlib
+conda install opencv
+conda install pytorch torchvision cudatoolkit=11.1 -c pytorch -c conda-forge
+conda install spyder
+conda install tqdm
+conda install scipy
+conda install imageio
+conda install matplotlib
+cd "C:\Program Files\MATLAB\R2021a\extern\engines\python"
+python setup.py install
+conda install h5py

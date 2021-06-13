@@ -100,4 +100,63 @@ def remove_all_outliers(ps,js):
     for j in js:
         remove_outliers(ps[:,j,0]);
         remove_outliers(ps[:,j,1]);
+        
+def crop(img,size,h_cent):
+    scale = img.shape[0] / size;
+    new_w = int(img.shape[1] / scale);
+    scaled = cv2.resize(img,(new_w,size));
+    hs = int(size / 2);
+    h_cent = int(h_cent / scale);
+    cropped = scaled[:,h_cent - hs:h_cent + hs,:];
+    return cropped;
+
+def crop_head(head,neck):
+    hn_dis = int(neck[1] - head[1]);
+    half_d = int(hn_dis / 2);
+    dim = hn_dis + half_d;
+    half_dim = int(dim / 2);
+    top = int(head[1] - half_d);
+    bottom = int(neck[1]);
+    centre = int((head[0] + neck[0]) / 2);
+    left = centre - half_dim;
+    right = centre + half_dim;
     
+    tl = (left,top);
+    br = (right,bottom);
+    
+    return tl,br;
+
+def get_uncrop(img,size,h_cent):
+    ar = img.shape[1] / img.shape[0];
+    shift = (size * (ar - 1)) / 2;
+    scale = scale = img.shape[0] / size;
+    def uncrop(pt):
+        new_x = int((pt[0] + shift) * scale);
+        new_y = int(pt[1] * scale);
+        return (new_x,new_y);
+    return uncrop;
+
+def extract_head(img,tl,br,uc,size):
+    tl_uc = uc(tl);
+    br_uc = uc(br);
+    
+    ex = img[tl_uc[1]:br_uc[1],tl_uc[0]:br_uc[0],:];
+    
+    ex = cv2.resize(ex,(size,size));
+    
+    return ex;
+    
+def show(img):
+    cv2.imshow('Image',img);
+    cv2.waitKey(0);
+    cv2.destroyAllWindows();
+    
+def get_head_tilt(landmarks):
+    right_eye = landmarks.part(36);
+    left_eye = landmarks.part(45);
+    
+    opp = right_eye.y - left_eye.y;
+    adj = right_eye.x - left_eye.x;
+    ang = -np.arctan(opp/adj);
+    
+    return ang;

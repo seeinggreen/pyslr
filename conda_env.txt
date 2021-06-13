@@ -12,3 +12,4 @@ conda install matplotlib
 cd "C:\Program Files\MATLAB\R2021a\extern\engines\python"
 python setup.py install
 conda install h5py
+conda install -c kitsune.one python-blender

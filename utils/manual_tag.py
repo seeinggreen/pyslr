@@ -30,20 +30,20 @@ def manual_tag():
     #Set click to true to load first frame
     click = True;
     
-    cap = cv2.VideoCapture('..\\BF1n.mov');
+    cap = cv2.VideoCapture('..\\BL28n.mov');
     
     ret, frame = cap.read();
     c,s = ut.calc_cent_scale(frame);
     
-    cap.set(cv2.CAP_PROP_POS_FRAMES,200);
+    #cap.set(cv2.CAP_PROP_POS_FRAMES,200);
     
-    while len(coords) < 100:
+    while len(coords) < 500:
         if click:
             print(cap.get(cv2.CAP_PROP_POS_FRAMES));
             ret, frame = cap.read();
-            f = crop(frame,c,s,(256,256));
-            img = 255 - (f.astype('uint8') * 255);
-            cv2.imshow('Window',img);
+            #f = crop(frame,c,s,(256,256));
+            #img = 255 - (f.astype('uint8') * 255);
+            cv2.imshow('Window',frame);
             click = False;
     
         if cv2.waitKey(1) & 0xFF == ord('q'):

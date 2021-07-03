@@ -21,7 +21,7 @@ def hm_to_mp(hm_data):
 
 def hms_to_ml(hms):
     mlhms = [];
-    for hm in hms:
+    for hm in tqdm(hms):
         mlhm = np.transpose(hm,(1,2,0));
         mlhms.append(np.expand_dims(mlhm,3));
     mlhms = matlab.single(np.concatenate(mlhms,axis=3).tolist());

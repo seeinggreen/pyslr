@@ -77,7 +77,7 @@ def convert_points(ps_3d):
             
     return s_ps;
 
-def prepare_render(s_ps,tilts):
+def prepare_render(extra_data,face_only=False,all_frames=True,end_frame=100):
     load_blend_file();
     ob = bpy.context.object;
     bpy.context.scene.render.filepath = cf.base_dir + "\\blenderRenders\\";
@@ -86,27 +86,32 @@ def prepare_render(s_ps,tilts):
     head = bpy.context.object.pose.bones.get("head");
     head.rotation_mode = 'XYZ';
     
-    for i,f in enumerate(s_ps):
-        wm = ob.convert_space(pose_bone=lw,matrix=lw.matrix,from_space='POSE',to_space='WORLD');
-        wm[0][3] = f['lwri'][0];
-        wm[1][3] = f['lwri'][1];
-        wm[2][3] = f['lwri'][2];
-        pm = ob.convert_space(pose_bone=lw,matrix=wm,from_space='WORLD',to_space='POSE');
-        lw.matrix = pm;
-        lw.keyframe_insert('location',frame=i);
+    for i,f in enumerate(extra_data['scaled_points']):
+        if all_frames:
+            frame_num = i;
+        else:
+            frame_num = extra_data['frame_num'][i];
+        if not face_only:
+            wm = ob.convert_space(pose_bone=lw,matrix=lw.matrix,from_space='POSE',to_space='WORLD');
+            wm[0][3] = f['lwri'][0];
+            wm[1][3] = f['lwri'][1];
+            wm[2][3] = f['lwri'][2];
+            pm = ob.convert_space(pose_bone=lw,matrix=wm,from_space='WORLD',to_space='POSE');
+            lw.matrix = pm;
+            lw.keyframe_insert('location',frame=frame_num);
+            
+            wm = ob.convert_space(pose_bone=rw,matrix=rw.matrix,from_space='POSE',to_space='WORLD');
+            wm[0][3] = f['rwri'][0];
+            wm[1][3] = f['rwri'][1];
+            wm[2][3] = f['rwri'][2];
+            pm = ob.convert_space(pose_bone=rw,matrix=wm,from_space='WORLD',to_space='POSE');
+            rw.matrix = pm;
+            rw.keyframe_insert('location',frame=frame_num);
         
-        wm = ob.convert_space(pose_bone=rw,matrix=rw.matrix,from_space='POSE',to_space='WORLD');
-        wm[0][3] = f['rwri'][0];
-        wm[1][3] = f['rwri'][1];
-        wm[2][3] = f['rwri'][2];
-        pm = ob.convert_space(pose_bone=rw,matrix=wm,from_space='WORLD',to_space='POSE');
-        rw.matrix = pm;
-        rw.keyframe_insert('location',frame=i);
-        
-        head.rotation_euler[2] = tilts[i];
-        head.keyframe_insert('rotation_euler',frame=i);
+        head.rotation_euler = extra_data['head_angles'][i];
+        head.keyframe_insert('rotation_euler',frame=frame_num);
     
-    bpy.context.scene.frame_end = 100;
+    bpy.context.scene.frame_end = end_frame;
     bpy.ops.wm.save_as_mainfile(filepath=cf.base_dir + '\\blend.blend');
     
 def render():

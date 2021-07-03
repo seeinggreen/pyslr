@@ -110,7 +110,21 @@ def crop(img,size,h_cent):
     cropped = scaled[:,h_cent - hs:h_cent + hs,:];
     return cropped;
 
-def crop_head(head,neck):
+def crop_kps(img,kps,size,h_cent):
+    scale = img.shape[0] / size;
+    new_w = img.shape[1] / scale;
+    h_dif = int((new_w - size) / 2);
+    new_kps = [];
+    for kp in kps:
+        x = int(kp[0] / scale) - h_dif;
+        y = int(kp[1] / scale);
+        new_kps.append([x,y]);
+    return new_kps;
+
+def clip_point(p,size):
+    return min(max(0,p),size);
+
+def crop_head(head,neck,size):
     hn_dis = int(neck[1] - head[1]);
     half_d = int(hn_dis / 2);
     dim = hn_dis + half_d;
@@ -121,8 +135,8 @@ def crop_head(head,neck):
     left = centre - half_dim;
     right = centre + half_dim;
     
-    tl = (left,top);
-    br = (right,bottom);
+    tl = (clip_point(left,size),clip_point(top,size));
+    br = (clip_point(right,size),clip_point(bottom,size));
     
     return tl,br;
 
@@ -139,7 +153,7 @@ def get_uncrop(img,size,h_cent):
 def extract_head(img,tl,br,uc,size):
     tl_uc = uc(tl);
     br_uc = uc(br);
-    
+
     ex = img[tl_uc[1]:br_uc[1],tl_uc[0]:br_uc[0],:];
     
     ex = cv2.resize(ex,(size,size));
@@ -150,13 +164,3 @@ def show(img):
     cv2.imshow('Image',img);
     cv2.waitKey(0);
     cv2.destroyAllWindows();
-    
-def get_head_tilt(landmarks):
-    right_eye = landmarks.part(36);
-    left_eye = landmarks.part(45);
-    
-    opp = right_eye.y - left_eye.y;
-    adj = right_eye.x - left_eye.x;
-    ang = -np.arctan(opp/adj);
-    
-    return ang;

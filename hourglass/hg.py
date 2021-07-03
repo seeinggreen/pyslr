@@ -39,15 +39,13 @@ def get_kp(frame,do,c,s):
     kps = pred[0]["keypoints"];
     return kps;
 
-def get_kps(model, frame_it, total, get_frame):
-    frame0 = get_frame(next(frame_it));
+def get_kps(model, frame0, frame_gen, total):
     c,s = ut.calc_cent_scale(frame0);
     
     do = hg.get_do(*model);
     kpss = [get_kp(frame0,do,c,s)]
     
-    for f in tqdm(frame_it,initial=1,total=total):
-        frame = get_frame(f);
+    for frame in tqdm(frame_gen,initial=1,total=total):
         kpss.append(get_kp(frame,do,c,s));
         
     return kpss;

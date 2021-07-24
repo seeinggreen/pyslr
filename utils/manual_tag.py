@@ -6,8 +6,6 @@ Created on Tue May 25 16:00:50 2021
 """
 
 import cv2;
-import numpy as np;
-from hourglass.hg_files.img import crop;
 from utils import utils as ut;
 
 def get_click(event,x,y,flags,param):
@@ -17,11 +15,13 @@ def get_click(event,x,y,flags,param):
         coords.append([x,y]);
         click = True;
         
-def manual_tag():      
+def manual_tag(frame0,frame_gen,total):    
+    """Takes a stream of frames and returns the location clicked for each frame.
+    
+    Takes a sample frame (for calulating scale/centre), a generator object to 
+    get each frame and the total number of frames to know when to finish."""
     cv2.namedWindow('Window');
     cv2.setMouseCallback('Window',get_click);
-    
-    img = np.zeros((256,256,3));
     
     global coords;
     global click;
@@ -29,27 +29,17 @@ def manual_tag():
     
     #Set click to true to load first frame
     click = True;
+
+    c,s = ut.calc_cent_scale(frame0);
     
-    cap = cv2.VideoCapture('..\\BL28n.mov');
-    
-    ret, frame = cap.read();
-    c,s = ut.calc_cent_scale(frame);
-    
-    #cap.set(cv2.CAP_PROP_POS_FRAMES,200);
-    
-    while len(coords) < 500:
+    while len(coords) < total:
         if click:
-            print(cap.get(cv2.CAP_PROP_POS_FRAMES));
-            ret, frame = cap.read();
-            #f = crop(frame,c,s,(256,256));
-            #img = 255 - (f.astype('uint8') * 255);
+            frame = next(frame_gen);
             cv2.imshow('Window',frame);
             click = False;
     
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break;
-            
-    cap.release();
     cv2.destroyAllWindows();
     
     return coords;

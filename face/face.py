@@ -10,6 +10,7 @@ import cv2;
 import utils.utils as ut;
 from tqdm import tqdm;
 import numpy as np;
+from hourglass import hg;
 
 def get_det_pre():
     return dlib.get_frontal_face_detector(),dlib.shape_predictor("face\\shape_predictor_68_face_landmarks.dat");
@@ -58,37 +59,42 @@ def est_face_box(head,neck):
 def scale_face_boxes(efs,tls,brs,size):
     sefs = [];
     for i,ef in enumerate(efs):
-        left = tls[i][0];
-        top = tls[i][1];
-        right = brs[i][0];
-        bottom = brs[i][1];
-        
-        w = right - left;
-        h = bottom - top;
-        
-        h_scale = size / w;
-        v_scale = size / h;
-        
-        new_left = int((ef[0][0]-left) * h_scale);
-        new_top = int((ef[0][1]-top) * v_scale);
-        new_right = int((ef[1][0]-left) * h_scale);
-        new_bottom = int((ef[1][1]-top) * v_scale);
-        
-        sef = ((new_left,new_top),(new_right,new_bottom));
+        if ef is not None:
+            left = tls[i][0];
+            top = tls[i][1];
+            right = brs[i][0];
+            bottom = brs[i][1];
+            
+            w = right - left;
+            h = bottom - top;
+            
+            h_scale = size / w;
+            v_scale = size / h;
+            
+            new_left = int((ef[0][0]-left) * h_scale);
+            new_top = int((ef[0][1]-top) * v_scale);
+            new_right = int((ef[1][0]-left) * h_scale);
+            new_bottom = int((ef[1][1]-top) * v_scale);
+            
+            sef = ((new_left,new_top),(new_right,new_bottom));
+        else:
+            sef = None;
         sefs.append(sef);
         
     return sefs;
         
 
-def id_face(frame,detector,predictor,ef):
+def id_face(frame,detector,predictor,ef=None):
     grey = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY);
     faces = detector(grey);
     if len(faces) > 0:
         face = faces[0];
         rect = ((face.left(), face.top()), (face.right(), face.bottom()));
-    else:
+    elif ef:
         face = dlib.rectangle(*ef[0],*ef[1]);
         rect = None;
+    else:
+        return None,None,None;
         
     landmarks = predictor(grey,face);
     ps = [];
@@ -111,3 +117,35 @@ def id_faces(frame_gen,tls,brs,uc,efs):
         fpss.append(ps);
         tilts.append(tilt);
     return rects,fpss,tilts;
+
+def extr_exp_faces(frame0,fg1,fg2,time_str="",kpss=None):
+    if time_str:
+        data = hg.load_exp_data(time_str);
+        kpss = np.ones((100,2,3),dtype=int);
+        kpss[:,0,0:2] = data['head']['true'];
+        kpss[:,1,0:2] = data['neck']['true'];
+        
+        frames = hg.get_frames(time_str);
+    else:
+        frames = range(len(kpss));
+    
+    tls = [];
+    brs = [];
+    efs = [];
+    rrs = [];
+    d,p = get_det_pre();
+    for i in range(len(frames)):
+        kps = ut.crop_kps(frame0,kpss[i],256,320);
+        tl,br = ut.crop_head(*kps[0:2],256);
+        fb = est_face_box(*kps[0:2]);
+        raw_rect,_,_ = id_face(next(fg1),d,p);
+        tls.append(tl);
+        brs.append(br);
+        efs.append(fb);
+        rrs.append(raw_rect);
+        
+    sefs = scale_face_boxes(efs, tls, brs, 256);
+    uc = ut.get_uncrop(frame0,256,320);
+    extra_data = {};
+    extra_data['face_box'], extra_data['face_landmarks'], extra_data['head_angles'] = id_faces(fg2,tls,brs,uc,sefs);
+    return tls,brs,rrs,extra_data;

@@ -53,7 +53,7 @@ def pt_to_tup(pt):
 def draw_stick_figure(frame,ps):
     #Red for left arm/leg
     for p0,p1 in left_limbs:
-      cv2.line(frame,pt_to_tup(ps[p0]),pt_to_tup(ps[p1]),(0,0,255),5);  
+        cv2.line(frame,pt_to_tup(ps[p0]),pt_to_tup(ps[p1]),(0,0,255),5);  
     
     #Green for right arm/leg
     for p0,p1 in right_limbs:

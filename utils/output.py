@@ -15,7 +15,7 @@ def show_results(datapath,nImg,mods,input_data=None,loop=True,fn=None,start_fram
     cap = cv2.VideoCapture(datapath);
     cont = True;
     if fn is not None:
-        out = cv2.VideoWriter('..\\fn',cv2.VideoWriter_fourcc(*'mjpa'), 10, (768*2,768));
+        out = cv2.VideoWriter('..\\'+fn,cv2.VideoWriter_fourcc(*'mjpa'), 10, (768*2,768));
         out_vid = True;
     else:
         out_vid = False;

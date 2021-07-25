@@ -170,8 +170,8 @@ if __name__ == "__main__":
     ### UNCOMMENT TO RENDER OUTPUT ###
     
     mods = [output.basic_crop,output.highlight_points,output.draw_stickfigure,
-            output.draw_head_box,output.extract_head,output.draw_face_box,
-            output.draw_face_landmarks,output.show_render_face,output.blank];
+            output.draw_head_box,output.basic_crop,output.basic_crop,
+            output.extract_head,output.basic_crop,output.basic_crop];
     data = {'kpss':kpss,'position_data':position_data,'tls':tls,'brs':brs,
             'uc':uc,'sefs':sefs};
     output.show_results(datapath,nImg,mods,start_frame=start_frame,input_data=data);

@@ -162,13 +162,32 @@ def read_heatmap(fn):
     return ds;
 
 def convert_keypoints(kps,inSize,outSize):
+    """
+    Takes a set of keypoints and adjusts to a new scale.
+
+    Parameters
+    ----------
+    kps : numpy.ndarray
+        The keypoints to convert.
+    inSize : TYPE
+        The size of the original image.
+    outSize : TYPE
+        The size of the scaled image.
+
+    Returns
+    -------
+    conkps : numpy.ndarray
+        The converted keypoints.
+    """
     conkps = np.array(kps);
     
     scale = inSize / outSize;    
     for kp in conkps:
+        #Scale each point by the scale factor
         kp[0] /= scale;
         kp[1] /= scale;
         
+        #Ensure the points don't go outside the bounds of the image
         kp[0] = min(kp[0],outSize - 1);
         kp[0] = max(0,kp[0]);
         
@@ -240,6 +259,19 @@ def reload(config,hg_dir):
         config['train']['epoch'] = 0;
         
 def get_get_kp(cap):
+    """
+    Returns a method for obtaining the keypoints for a single frame.
+
+    Parameters
+    ----------
+    cap : cv2.VideoCapture
+        A CV2 video capture object.
+
+    Returns
+    -------
+    gk : function
+        A function that takes a frame number and returns the keypoints.
+    """
     model = load_model(cf.hg_dir);
     do = get_do(model);
     _,frame0 = cap.read();

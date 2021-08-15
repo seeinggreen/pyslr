@@ -111,8 +111,11 @@ def id_faces(frame_gen,tls,brs,uc,efs):
     fpss = [];
     tilts = [];
     for i,frame in enumerate(tqdm(frame_gen)):
-        frame = ut.extract_head(frame,tls[i],brs[i],uc,256);
-        rect,ps,tilt = id_face(frame, d, p, efs[i]);
+        if tls[i] is None or brs[i] is None:
+            rect,ps,tilt = None,None,None;
+        else:
+            frame = ut.extract_area(frame,tls[i],brs[i],uc,256);
+            rect,ps,tilt = id_face(frame, d, p, efs[i]);
         rects.append(rect);
         fpss.append(ps);
         tilts.append(tilt);

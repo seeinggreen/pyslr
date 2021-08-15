@@ -6,7 +6,6 @@ Created on Sat Jun  5 14:23:25 2021
 """
 
 import config as cf;
-from hourglass import hg;
 import numpy as np;
 from scipy.spatial import distance;
 import bpy;
@@ -169,21 +168,9 @@ def prepare_render(position_data,face_only=False,all_frames=True,end_frame=100):
             frame_num = position_data['frame_num'][i];
         if not face_only:            
             position_wrist(position_data['vectors'][i]['lsho_lwri'],lsho,lw);
-            """wm = ob.convert_space(pose_bone=lw,matrix=lw.matrix,from_space='POSE',to_space='WORLD');
-            wm[0][3] = f['lwri'][0];
-            wm[1][3] = f['lwri'][1];
-            wm[2][3] = f['lwri'][2];
-            pm = ob.convert_space(pose_bone=lw,matrix=wm,from_space='WORLD',to_space='POSE');
-            lw.matrix = pm;"""
             lw.keyframe_insert('location',frame=frame_num);
             
             position_wrist(position_data['vectors'][i]['rsho_rwri'],rsho,rw);
-            """wm = ob.convert_space(pose_bone=rw,matrix=rw.matrix,from_space='POSE',to_space='WORLD');
-            wm[0][3] = f['rwri'][0];
-            wm[1][3] = f['rwri'][1];
-            wm[2][3] = f['rwri'][2];
-            pm = ob.convert_space(pose_bone=rw,matrix=wm,from_space='WORLD',to_space='POSE');
-            rw.matrix = pm;"""
             rw.keyframe_insert('location',frame=frame_num);
         
         head.rotation_euler = position_data['head_angles'][i];
@@ -205,31 +192,53 @@ def render():
     os.system(cf.blend_exe + " ../blend.blend --background --python blender/bender_render.py")
     
 def get_arm_vectors(position_data):
+    """
+    Takes the inferred position data and calculates the arm positions as
+    vectors from the shoulders, using the arm lengths of the generated model
+    already loaded in Blender.
+
+    Parameters
+    ----------
+    position_data : dict
+        Dictionary containing the keypoints for the arms.
+
+    Returns
+    -------
+    None (adds results to position_data dict).
+    """
     position_data['vectors'] = [];
     for i,kps in enumerate(position_data['keypoints']):
+        #Add dict for vectors to be stored
         position_data['vectors'].append({});
         
+        #Separate the left and right arms
         left_arm_points = [kps['lsho'],kps['lelb'],kps['lwri']];
         right_arm_points = [kps['rsho'],kps['relb'],kps['rwri']];
         
+        #Get the locations in world space for each of the points
         bones = bpy.context.object.pose.bones;
         world_locs = {};
         for b in ['upperarm01.L','upperarm01.R','lowerarm01.L','lowerarm01.R','wrist.L','wrist.R']: 
             wm = bpy.context.object.convert_space(pose_bone=bones[b],matrix=bones[b].matrix,from_space='POSE',to_space='WORLD');
+            #Extract XYZ coordinates from 4x4 matrix
             world_locs[b] = np.array(wm)[:-1,3];
         
+        #Calculate vectors for shoulder -> elbow and elbow -> wrist
         left_sho_to_elb = world_locs['lowerarm01.L'] - world_locs['upperarm01.L'];
         right_sho_to_elb = world_locs['lowerarm01.R'] - world_locs['upperarm01.R'];
         
         left_elb_to_wri = world_locs['wrist.L'] - world_locs['lowerarm01.L'];
         right_elb_to_wri = world_locs['wrist.R'] - world_locs['lowerarm01.R'];
         
+        #Scale the vectors to the correct length
         new_left_elb, new_left_wri = scale_arm(left_arm_points,left_sho_to_elb,left_elb_to_wri);
         new_right_elb, new_right_wri = scale_arm(right_arm_points,right_sho_to_elb,right_elb_to_wri);
         
+        #Calculate shoulder -> wrist vectors
         left_sho_to_wri = new_left_wri - kps['lsho'];
         right_sho_to_wri = new_right_wri - kps['rsho'];
         
+        #Store vectors in position_data dict
         position_data['vectors'][i]['lsho_lwri'] = left_sho_to_wri;
         position_data['vectors'][i]['rsho_rwri'] = right_sho_to_wri;
         position_data['vectors'][i]['new_lelb'] = new_left_elb;
@@ -239,118 +248,77 @@ def get_arm_vectors(position_data):
         
     
 def scale_arm(keypoints,model_sho_to_elb,model_elb_to_wri):
+    """
+    Scales arm vectors to the lengths of the generated 3D model.
+
+    Parameters
+    ----------
+    keypoints : list of numpy.ndarray
+        Keypoints for the shoulder, elbow and wrist.
+    model_sho_to_elb : numpy.ndarray
+        Vector from shoulder to elbow.
+    model_elb_to_wri : numpy.ndarray
+        Vector from elbow to wrist.
+
+    Returns
+    -------
+    new_elb : numpy.ndarray
+        New elbow position.
+    new_wri : numpy.ndarray
+        New wrist position.
+    """
     #Calculate the model's arm lengths
     model_up_arm = np.linalg.norm(model_sho_to_elb);
     model_low_arm = np.linalg.norm(model_elb_to_wri);
     
+    #Calculate shoulder to elbow vector
     sho_to_elb = keypoints[1] - keypoints[0];
+    
+    #Calculate upper arm length and delta between the two models
     up_arm = np.linalg.norm(sho_to_elb);
     up_arm_scale = model_up_arm / up_arm;
     up_arm_delta = (1 - up_arm_scale) * sho_to_elb;
     
+    #Reposition the elbow
     new_elb = keypoints[1] - up_arm_delta;
 
+    #Calculate elbow to wrist vector
     elb_to_wri = keypoints[2] - keypoints[1];
+    
+    #Calculate forearm length and delta between the two models
     low_arm = np.linalg.norm(elb_to_wri);
     low_arm_scale = model_low_arm / low_arm;
     low_arm_delta = (1 - low_arm_scale) * elb_to_wri;
     
+    #Reposition the wrist based on both deltas
     new_wri = keypoints[2] - up_arm_delta - low_arm_delta;
     
     return new_elb,new_wri;
 
-def scale_arms(preds,model):
-    new_preds = {};
-    #left
-    pred_sh = preds['lsho'];
-    pred_el = preds['lelb'];
-    pred_wr = preds['lwri'];
-    mod_sh_to_el = model['lowerarm01.L'] - model['upperarm01.L'];
-    mod_el_to_wr = model['wrist.L'] - model['lowerarm01.L'];
-    new_preds['lelb'],new_preds['lwri'] = scale_arm(pred_sh,pred_el,pred_wr,mod_sh_to_el,mod_el_to_wr);
-    
-    l_sh_to_new_wr = new_preds['lwri'] - preds['lsho'];
-    
-    #right
-    pred_sh = preds['rsho'];
-    pred_el = preds['relb'];
-    pred_wr = preds['rwri'];
-    mod_sh_to_el = model['lowerarm01.R'] - model['upperarm01.R'];
-    mod_el_to_wr = model['wrist.R'] - model['lowerarm01.R'];
-    new_preds['relb'],new_preds['rwri'] = scale_arm(pred_sh,pred_el,pred_wr,mod_sh_to_el,mod_el_to_wr);
-    r_sh_to_new_wr = new_preds['rwri'] - preds['rsho'];
-    
-    return new_preds,l_sh_to_new_wr,r_sh_to_new_wr;
-
-def get_wrist_vectors(ps,model):
-    _,lv,rv = scale_arms(ps,model);
-    #lv[1] *= -1;
-    #rv[1] *= -1;
-
-    return lv,rv;
-
 def position_wrist(vec,sho,wri):
+    """
+    Takes the vector shoulder -> wrist vector and the shoulder/wrist bones and
+    positions the wrist in the correct position.
+
+    Parameters
+    ----------
+    vec : numpy.ndarray
+        The vector from the shoulder to the wrist.
+    sho : bpy.types.PoseBone
+        Pose bone for the shoulder.
+    wri : bpy.types.PoseBone
+        Pose bone for the wrist.
+
+    Returns
+    -------
+    None.
+    """
+    #Get the world-space matrices for the shoulder and wrist
     wm_sho = bpy.context.object.convert_space(pose_bone=sho,matrix=sho.matrix,from_space='POSE',to_space='WORLD');
     wm_wri = bpy.context.object.convert_space(pose_bone=wri,matrix=wri.matrix,from_space='POSE',to_space='WORLD');
+    #Set the XYZ coordinates to the shoulder + the vector
     for i in range(3):
         wm_wri[i][3] = wm_sho[i][3] + vec[i];
+    #Convert back to pose-space and move the wrist
     pm_wri = bpy.context.object.convert_space(pose_bone=wri,matrix=wm_wri,from_space='WORLD',to_space='POSE');
     wri.matrix = pm_wri;
-    
-"""def scale_arm(pred_sh,pred_el,pred_wr,mod_sh_to_el,mod_el_to_wr):    
-    mod_ua = np.linalg.norm(mod_sh_to_el);
-    mod_la = np.linalg.norm(mod_el_to_wr);
-    
-    pred_sh_to_el = pred_el - pred_sh;
-    pred_ua = np.linalg.norm(pred_sh_to_el);
-    ua_s = mod_ua / pred_ua;
-    ua_del = (1 - ua_s) * pred_sh_to_el;
-    
-    pred_el_new = pred_el - ua_del;
-
-    pred_el_to_wr = pred_wr - pred_el;
-    pred_la = np.linalg.norm(pred_el_to_wr);
-    la_s = mod_la / pred_la;
-    la_del = (1 - la_s) * pred_el_to_wr;
-    
-    pred_wr_new = pred_wr - ua_del - la_del;
-    
-    return pred_el_new,pred_wr_new;
-
-def scale_arms(preds,model):
-    new_preds = {};
-    #left
-    pred_sh = preds['lsho'];
-    pred_el = preds['lelb'];
-    pred_wr = preds['lwri'];
-    mod_sh_to_el = model['lowerarm01.L'] - model['upperarm01.L'];
-    mod_el_to_wr = model['wrist.L'] - model['lowerarm01.L'];
-    new_preds['lelb'],new_preds['lwri'] = scale_arm(pred_sh,pred_el,pred_wr,mod_sh_to_el,mod_el_to_wr);
-    
-    l_sh_to_new_wr = new_preds['lwri'] - preds['lsho'];
-    
-    #right
-    pred_sh = preds['rsho'];
-    pred_el = preds['relb'];
-    pred_wr = preds['rwri'];
-    mod_sh_to_el = model['lowerarm01.R'] - model['upperarm01.R'];
-    mod_el_to_wr = model['wrist.R'] - model['lowerarm01.R'];
-    new_preds['relb'],new_preds['rwri'] = scale_arm(pred_sh,pred_el,pred_wr,mod_sh_to_el,mod_el_to_wr);
-    r_sh_to_new_wr = new_preds['rwri'] - preds['rsho'];
-    
-    return new_preds,l_sh_to_new_wr,r_sh_to_new_wr;
-
-def get_wrist_vectors(ps,model):
-    _,lv,rv = scale_arms(ps,model);
-    #lv[1] *= -1;
-    #rv[1] *= -1;
-
-    return lv,rv;
-
-def position_wrist(vec,sho,wri):
-    wm_sho = bpy.context.object.convert_space(pose_bone=sho,matrix=sho.matrix,from_space='POSE',to_space='WORLD');
-    wm_wri = wm_sho;
-    for i in range(3):
-        wm_wri[i][3] += vec[i];
-    pm_wri = bpy.context.object.convert_space(pose_bone=wri,matrix=wm_wri,from_space='WORLD',to_space='POSE');
-    wri.matrix = pm_wri;"""

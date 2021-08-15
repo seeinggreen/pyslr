@@ -13,9 +13,32 @@ import numpy as np;
 from hourglass import hg;
 
 def get_det_pre():
+    """
+    Returns the DLib detector and predictor from the pretrained model.
+
+    Returns
+    -------
+    det : dlib.fhog_object_detector
+        DLib face detector.
+    pre : dlib.shape_predictor
+        DLib facial landmark predictor.
+    """
     return dlib.get_frontal_face_detector(),dlib.shape_predictor("face\\shape_predictor_68_face_landmarks.dat");
 
 def get_head_tilts(landmarks):
+    """
+    Calculate the 3D head tilts from the given facial landmarks.
+
+    Parameters
+    ----------
+    landmarks : dlib.full_object_detection
+        The predicted facial landmarks.
+
+    Returns
+    -------
+    angs : list of float
+        The calculated tilt about the X, Y and Z axes
+    """
     right_eye = landmarks.part(36);
     left_eye = landmarks.part(45);
     centre = landmarks.part(27);

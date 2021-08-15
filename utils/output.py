@@ -10,6 +10,7 @@ import numpy as np;
 import config as cf;
 from utils import utils as ut;
 from openpose import op;
+from hand import hand;
 
 def show_results(datapath,nImg,mods,input_data=None,loop=True,fn=None,start_frame=None,frame_ids=None):
     cap = cv2.VideoCapture(datapath);
@@ -72,13 +73,15 @@ def show_render_face(data):
 
 def highlight_points(data):
     crop = np.array(data['crop']);
-    for p in range(0,8):
-        ut.highlightPoint(crop,data['kpss'][data['i']][p],op.parts[p]);
+    if data['kpss'][data['i']] is not None:
+        for p in range(0,8):
+            ut.highlightPoint(crop,data['kpss'][data['i']][p],op.parts[p]);
     return crop;
 
 def draw_stickfigure(data):
     crop = np.array(data['crop']);
-    ut.draw_stick_figure(crop, data['kpss'][data['i']]);
+    if data['kpss'][data['i']] is not None:
+        ut.draw_stick_figure(crop, data['kpss'][data['i']]);
     return crop;
 
 def draw_head_box(data):
@@ -98,10 +101,16 @@ def draw_face_box(data):
         cv2.rectangle(head, *sefs, (0, 0, 255));
     return head;
 
+def extract_area(data,box):
+    if box is None or box[0] is None or box[1] is None or box[1][0] - box[0][0] == 0 or box[1][1] - box[0][1] == 0:
+        box = ((0,0),(10,10));
+    area = ut.extract_area(data['frame'],*box,data['uc'],256);
+    return area;
+
 def extract_head(data):
     tl = data['tls'][data['i']];
     br = data['brs'][data['i']];
-    head = ut.extract_head(data['frame'],tl,br,data['uc'],256);
+    head = extract_area(data,(tl,br));
     return head;
 
 def draw_face_landmarks(data):
@@ -115,3 +124,82 @@ def draw_face_landmarks(data):
         for p in landmarks:
             cv2.circle(head,p,3,(255,0,200));
     return head;
+
+def draw_hand_box(data,box,c=[255,255,255]):
+    crop = np.array(data['crop']);
+    if box is not None:
+        cv2.rectangle(crop, *box, c);
+    return crop;
+
+def draw_left_hand_box(data):
+    box = data['lhb'][data['i']];
+    return draw_hand_box(data,box,[0,255,0]);
+
+def draw_right_hand_box(data):
+    box = data['rhb'][data['i']];
+    return draw_hand_box(data,box,[0,0,255]);
+
+def extract_left_hand(data):
+    box = data['lhb'][data['i']];
+    return extract_area(data,box);
+
+def extract_right_hand(data):
+    box = data['rhb'][data['i']];
+    return extract_area(data,box);
+
+def draw_rh_lines(data):
+    #hnd = extract_right_hand(data);
+    hnd = np.array(data['crop']);
+    hand.draw_hand_lines(hnd,data['rhkpss'][data['i']]);
+    return hnd;
+
+def draw_lh_lines(data):
+    #hnd = extract_left_hand(data);
+    hnd = np.array(data['crop']);
+    hand.draw_hand_lines(hnd,data['lhkpss'][data['i']]);
+    return hnd;
+
+def rend_samples(data,start_frame,cap,fs=[30,51,78,90],show=False):
+    row1 = [];
+    row2 = [];
+    row3 = [];
+    for f in fs:
+        cap.set(cv2.CAP_PROP_POS_FRAMES,start_frame+f);
+        _,data['frame'] = cap.read();
+        data['i'] = f;
+        row1.append(extract_head(data));
+        row2.append(data['plts']['y'][f]);
+        render = cv2.imread(cf.renders_path + "{:04d}.png".format(f+1));
+        render = cv2.resize(render,(256,256));
+        row3.append(render);
+    row1 = np.concatenate(row1,axis=1);
+    row2 = np.concatenate(row2,axis=1);
+    row3 = np.concatenate(row3,axis=1);
+    grid = np.concatenate([row1,row2,row3]);
+    if show:
+        ut.show(grid);
+    return grid;
+
+def hand_samples(data,lfs,rfs,start_frame,cap,show=False):
+    data['lhkpss'] = hand.translate_hand_kps(data['lhkpss'],data['kpss'],7);
+    data['rhkpss'] = hand.translate_hand_kps(data['rhkpss'],data['kpss'],4);
+    row1 = [];
+    row2 = [];
+    for f in lfs:
+        cap.set(cv2.CAP_PROP_POS_FRAMES,start_frame+f);
+        _,frame = cap.read();
+        data['crop'] = ut.crop(frame,256,320);
+        data['i'] = f;
+        row1.append(draw_lh_lines(data)[105:-65,105:-65]);
+    for f in rfs:
+        cap.set(cv2.CAP_PROP_POS_FRAMES,start_frame+f);
+        _,frame = cap.read();
+        data['crop'] = ut.crop(frame,256,320);
+        data['i'] = f;
+        row2.append(draw_rh_lines(data)[65:-105,65:-105]);
+    row1 = np.concatenate(row1,axis=1);
+    row2 = np.concatenate(row2,axis=1);
+    grid = np.concatenate([row1,row2]);
+    if show:
+        ut.show(grid);
+    return grid;

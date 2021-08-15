@@ -13,6 +13,7 @@ import utils.manual_tag as mt;
 import json;
 import numpy as np;
 from tqdm import tqdm;
+import dlib;
 
 def evaluate(cap,samples,get_kp,parts,parts_to_use,frames=None):
     time_str = ut.create_eval_folder();        
@@ -132,3 +133,25 @@ def plot_exp(data,fn,frame=None,kps=None,target=[],**kwargs):
         target = ut.draw_target(target,kps);
     for kp in ['all']:
         ut.plot_exp(data[kp]['conf'],data[kp]['true'],data[kp]['pred'],data[kp]['score'],target,fn,**kwargs);
+
+def dlib_test(cap):
+    detector = dlib.get_frontal_face_detector();
+    predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
+    
+    for i in range(100):
+        ret, frame = cap.read();
+        grey = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY);
+        faces = detector(grey);
+        
+        if len(faces) > 0:
+            cv2.rectangle(frame, (faces[0].left(), faces[0].top()), (faces[0].right(), faces[0].bottom()), (0, 255, 0));
+            landmarks = predictor(grey,faces[0])
+            for l in range(68):
+                p = landmarks.part(l);
+                cv2.circle(frame,(p.x,p.y),3,(255,0,0))
+        
+        cv2.imshow('Face',frame);
+        cv2.waitKey(100);
+        
+    cap.release();
+    cv2.destroyAllWindows();

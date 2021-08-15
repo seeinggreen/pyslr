@@ -15,30 +15,83 @@ from tqdm import tqdm;
 import numpy as np;
 import cv2;
 import utils.utils as ut;
+import matplotlib.pyplot as plt;
+from matplotlib.lines import Line2D;
 
+def get_wrapper(wrapper=None,hand=False):
+    if wrapper is None:
+        wrapper = pop.WrapperPython();
+    params = {"model_folder": cf.openpose_dir + "/models/"};
+    if hand:
+        params["hand"] = True;
+        params["hand_detector"] = 2;
+        params["body"] = 0;
+    wrapper.configure(params);
+    return wrapper;
 
-wrapper = pop.WrapperPython();
-wrapper.configure({"model_folder": cf.openpose_dir + "/models/"})
-wrapper.start()
+def get_hand_kps(frame,lhb,rhb,wrapper):
+    if lhb is None and rhb is None:
+        return None,None,None;
+    
+    hrs = [];
+    if lhb is not None:
+        left_hand = pop.Rectangle(*lhb[0],lhb[1][0] - lhb[0][0],lhb[1][1] - lhb[0][1]);
+        hrs.append(left_hand);
+    else:
+        hrs.append(pop.Rectangle(0.,0.,0.,0.));
+        
+    if rhb is not None:
+        right_hand = pop.Rectangle(*rhb[0],rhb[1][0] - rhb[0][0],rhb[1][1] - rhb[0][1]);
+        hrs.append(right_hand);
+    else:
+        hrs.append(pop.Rectangle(0.,0.,0.,0.));
+        
+    datum = get_datum(frame,wrapper,hrs);
+    if lhb is None:
+        left = None;
+        right = datum.handKeypoints[1][0];
+    elif rhb is None:
+        left = datum.handKeypoints[0][0];
+        right = None;
+    else:
+        left = datum.handKeypoints[0][0];
+        right = datum.handKeypoints[1][0];
+    return left,right,datum;
 
-def get_kps(frame):
+def get_datum(frame,wrapper,hrs=None):
     # Process Image
     datum = pop.Datum()
     datum.cvInputData = np.ascontiguousarray(frame);
+    if hrs is not None:
+        datum.handRectangles = [hrs];
     wrapper.emplaceAndPop(pop.VectorDatum([datum]))
     
     # Display Image
-    return datum.poseKeypoints;
+    return datum;
 
-def get_kpss(frame_gen,total):
+def get_kpss(frame_gen,total,wrapper):
     kpss = [];
+    dats = [];
     for frame in tqdm(frame_gen,initial=1,total=total):
-        kps = get_kps(frame);
+        datum = get_datum(frame,wrapper);
+        dats.append(datum);
+        kps = datum.poseKeypoints;
         if kps is None:
-            kpss.append(np.zeros((25,3)));
+            kpss.append(None);
         else:
             kpss.append(np.sum(kps,axis=0));
-    return np.array(kpss);
+    return kpss,dats;
+
+def get_hand_kpss(frame_gen,total,wrapper,lhbs,rhbs):
+    lhkpss = [];
+    rhkpss = [];
+    outs = [];
+    for i,frame in enumerate(tqdm(frame_gen,initial=1,total=total)):
+        lhkps,rhkps,out = get_hand_kps(frame,lhbs[i],rhbs[i],wrapper);
+        lhkpss.append(lhkps);
+        rhkpss.append(rhkps);
+        outs.append(out);
+    return lhkpss,rhkpss,outs;
 
 def smooth_kpss(kpss):
     kpss = kpss[:,0:8,:];
@@ -99,3 +152,26 @@ def get_part_ids():
     for i,p in enumerate(parts):
         ids[p] = i;
     return ids;
+
+def plot_hand_confs(lhkpss,rhkpss,fn=None):
+    handconfs = {'left':[],'right':[]};
+    nImg = len(lhkpss);
+    nPs = len(lhkpss[0]);
+    for i in range(nImg):
+        handconfs['left'].append(sum(lhkpss[i][:,2])/nPs);
+        handconfs['right'].append(sum(rhkpss[i][:,2])/nPs);
+    avLeft = sum(handconfs['left'])/nImg;
+    avRight = sum(handconfs['right'])/nImg;
+    plt.figure();
+    plt.scatter(range(nImg),handconfs['left'],c='g',label='Left hand');
+    plt.scatter(range(nImg),handconfs['right'],c='r',label='Right hand');
+    plt.xlabel('Frame');
+    plt.ylabel('Average confidence over 21 keypoints');
+    plt.ylim(top=0.85);
+    plt.axhline(y=avLeft,c='g',linestyle='dashed',label='Average (left)');
+    plt.axhline(y=avRight,c='r',linestyle='dashed',label='Average (right)');
+    plt.legend(loc='upper center',ncol=2);
+    if fn is None:
+        plt.show();
+    else:
+        plt.savefig(fn);

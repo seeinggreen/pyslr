@@ -20,6 +20,7 @@ from openpose import op;
 import json;
 from utils import exp;
 from utils import output;
+from hand import hand;
 
 if __name__ == "__main__":
     #Set the data source for the video frames/images
@@ -48,7 +49,10 @@ if __name__ == "__main__":
     cap.set(cv2.CAP_PROP_POS_FRAMES,start_frame);
     
     print("Getting keypoints for each frame...");
-    """frames = hg.get_frames('2021-07-07-14_14_09');
+    #wrapper = op.get_wrapper();
+    #wrapper.start();
+    """#frames = hg.get_frames('2021-07-07-14_14_09');
+    frames = range(start_frame,start_frame+nImg);
     def frame_gen(f):
         cap.set(cv2.CAP_PROP_POS_FRAMES,f-5);
         for j in range(6):
@@ -56,16 +60,17 @@ if __name__ == "__main__":
     kpss = [];
     for f in tqdm(frames):
         fg = frame_gen(f);
-        raw_kpss = op.get_kpss(fg,6);
+        raw_kpss = op.get_kpss(fg,6,wrapper);
         kpss.append(raw_kpss[-1]);
-   
-    #kpss = op.get_kpss(wrapper,(ut.crop(get_frame(cap),256,h_cent) for i in range(nImg)),nImg);
-    smooth_kpss = op.smooth_kpss(kpss);
+    wrapper.stop();"""
+    #kpss,dats = op.get_kpss((ut.crop(get_frame(cap),256,h_cent) for i in range(nImg)),nImg,wrapper);
+    #wrapper.stop();
+    #kpss = op.smooth_kpss(kpss);
     
     #Release the capture object
-    cap.release();"""
+    cap.release();
     
-    with h5py.File('man_tags.h5') as f:
+    with h5py.File('man_tags3.h5') as f:
         #Data is stored in MPII format starting from neck
         ds = f['coords'];
         mpii = np.zeros((100,16,3),dtype=int);
@@ -150,9 +155,30 @@ if __name__ == "__main__":
     cap.set(cv2.CAP_PROP_POS_FRAMES,start_frame);
     position_data = {};
     
+    print("Isolating hands...");
+    left_hand_boxes = [];
+    right_hand_boxes = [];
+    for kps in kpss:
+        if kps is None:
+            left_hand_boxes.append(None);
+            right_hand_boxes.append(None);
+        else:
+            left_hand_boxes.append(hand.extract_hand(*kps[6:8]));
+            right_hand_boxes.append(hand.extract_hand(*kps[3:5]));
+    left_hand_boxes = hand.square_boxes(left_hand_boxes);
+    right_hand_boxes = hand.square_boxes(right_hand_boxes);
+    
     print("Idetifying facial features...");
     position_data['face_box'], position_data['face_landmarks'], position_data['head_angles'] = face.id_faces((get_frame(cap) for i in range(nImg)),tls,brs,uc,sefs);
     cap.release();
+    
+    print("Estimating hand positions...");
+    wrapper = op.get_wrapper(hand=True);
+    wrapper.start();
+    cap = cv2.VideoCapture(datapath);
+    cap.set(cv2.CAP_PROP_POS_FRAMES,start_frame);
+    lhkpss, rhkpss, hand_outs = op.get_hand_kpss((ut.crop(get_frame(cap),256,h_cent) for i in range(nImg)),nImg,wrapper,left_hand_boxes,right_hand_boxes);
+    wrapper.stop();
         
     print("Preparing render...");
     position_data['keypoints'] = [];
@@ -170,8 +196,9 @@ if __name__ == "__main__":
     ### UNCOMMENT TO RENDER OUTPUT ###
     
     mods = [output.basic_crop,output.highlight_points,output.draw_stickfigure,
-            output.draw_head_box,output.basic_crop,output.basic_crop,
-            output.extract_head,output.basic_crop,output.basic_crop];
-    data = {'kpss':kpss,'position_data':position_data,'tls':tls,'brs':brs,
-            'uc':uc,'sefs':sefs};
-    output.show_results(datapath,nImg,mods,start_frame=start_frame,input_data=data);
+            output.draw_head_box,output.draw_right_hand_box,output.draw_left_hand_box,
+            output.extract_head,output.draw_rh_lines,output.draw_lh_lines];
+    input_data = {'kpss':kpss,'position_data':position_data,'tls':tls,'brs':brs,
+            'uc':uc,'sefs':sefs,'lhb':left_hand_boxes,'rhb':right_hand_boxes,
+            'lhkpss':lhkpss,'rhkpss':rhkpss,'plts':plts};
+    output.show_results(datapath,nImg,mods,start_frame=start_frame,input_data=input_data);

@@ -42,7 +42,7 @@ if __name__ == "__main__":
     #Can load keypoints from file to save time
     useSaved = True;
     if useSaved:
-        with h5py.File('man_tags3.h5') as f:
+        with h5py.File('man_tags.h5') as f:
             #Data is stored in MPII format starting from neck
             ds = f['coords'];
             mpii = np.zeros((100,16,3),dtype=int);

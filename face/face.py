@@ -68,6 +68,23 @@ def get_head_tilts(landmarks):
     return [angX,angY, angZ];
 
 def est_face_box(head,neck):
+    """
+    Estimates where a face box would be for the given head/neck position.
+
+    Parameters
+    ----------
+    head : numpy.ndarray
+        The keypoint for the head.
+    neck : numpy.ndarray
+        The keypoint for the neck.
+
+    Returns
+    -------
+    tl : tuple of int
+        The coordinates of the top left of the box.
+    br : tuple of int
+        The coordinates of the bottom right of the box.
+    """
     hn_dis = int(neck[1] - head[1]);
     dim = int(hn_dis * (2/3));
     half_dim = int(dim / 2);
@@ -80,6 +97,25 @@ def est_face_box(head,neck):
     return (left,top),(right,bottom); 
 
 def scale_face_boxes(efs,tls,brs,size):
+    """
+    Takes face boxes and rescales them to a new size.
+
+    Parameters
+    ----------
+    efs : list
+        Estimated face boxes.
+    tls : list
+        Top left corners of detected face boxes.
+    brs : list
+        Bottom right corners of detected face boxes.
+    size : int
+        New size of image.
+
+    Returns
+    -------
+    sefs : list
+        The rescaled face boxes.
+    """
     sefs = [];
     for i,ef in enumerate(efs):
         if ef is not None:
@@ -108,6 +144,29 @@ def scale_face_boxes(efs,tls,brs,size):
         
 
 def id_face(frame,detector,predictor,ef=None):
+    """
+    Takes a frame of video and identifies the facial features.
+
+    Parameters
+    ----------
+    frame : numpy.ndarray
+        The frame of video containing the face.
+    detector : dlib.fhog_object_detector
+        DLib face detector.
+    predictor :  dlib.shape_predictor
+        DLib facial landmark predictor.
+    ef : TYPE, optional
+        A estimated facebox for use when the detector fails. The default is None.
+
+    Returns
+    -------
+    rect : dlib.Rectangle
+        The face box detected by DLib.
+    ps : list of tuple
+        The facial landmarks predicted by DLib.
+    tilt : list of float
+        The calculated tilts of the head.
+    """
     grey = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY);
     faces = detector(grey);
     if len(faces) > 0:
@@ -129,6 +188,32 @@ def id_face(frame,detector,predictor,ef=None):
     return rect,ps,tilt;
 
 def id_faces(frame_gen,tls,brs,uc,efs):
+    """
+    Takes a generator of frames and identifies the face in each one.
+
+    Parameters
+    ----------
+    frame_gen : generator
+        A generator of frames containing faces.
+    tls : list of tuple
+        The top left corners of the detected face boxes.
+    brs : list of tuple
+        The bottom right corners of the detected face boxes.
+    uc : function
+        A function to translate a keypoint based on a cropped image to a
+        keypoint based on the full frame.
+    efs : list
+        The estimated face boxes for use when the detector fails.
+
+    Returns
+    -------
+    rects : list of dlib.Rectangle
+        The face boxes detected by DLib.
+    fpss : list of list of tuple
+        The detected landmarks for each frame.
+    tilts : list of list of float
+        The calcualated tilts for each frame.
+    """
     d,p = get_det_pre();
     rects = [];
     fpss = [];
@@ -145,6 +230,33 @@ def id_faces(frame_gen,tls,brs,uc,efs):
     return rects,fpss,tilts;
 
 def extr_exp_faces(frame0,fg1,fg2,time_str="",kpss=None):
+    """
+    Gets the facial data for a series of frames used in an experiment.
+
+    Parameters
+    ----------
+    frame0 : numpy.ndarray
+        A sample frame to set the size used.
+    fg1 : generator
+        A generator to provide one sequence of frames.
+    fg2 : generator
+        A second generator to provide the same sequence of frames.
+    time_str : string, optional
+        A string to identify the experiment being used. The default is "".
+    kpss : list of numpy.ndarray, optional
+        The detected keypoints. The default is None.
+
+    Returns
+    -------
+    tls : list of tuple
+        The top left corners of the detected face boxes..
+    brs : list of tuple
+        The bottom right corners of the detected face boxes..
+    rrs : list of tuple
+        The face box detected (or not) by DLib.
+    extra_data : dict
+        The output of the facial recognition system for each frame.
+    """
     if time_str:
         data = hg.load_exp_data(time_str);
         kpss = np.ones((100,2,3),dtype=int);

@@ -16,6 +16,7 @@ import os;
 import config as cf;
 from openpose import op;
 from hourglass import hg;
+from scipy import stats;
 
 plt.ioff()
 
@@ -51,13 +52,13 @@ def pt_to_tup(pt):
     return (int(pt[0]),int(pt[1]));
 
 def draw_stick_figure(frame,ps):
-    #Red for left arm/leg
+    #Green for left arm/leg
     for p0,p1 in left_limbs:
-        cv2.line(frame,pt_to_tup(ps[p0]),pt_to_tup(ps[p1]),(0,0,255),5);  
+        cv2.line(frame,pt_to_tup(ps[p0]),pt_to_tup(ps[p1]),(0,255,0),5);  
     
-    #Green for right arm/leg
+    #Red for right arm/leg
     for p0,p1 in right_limbs:
-        cv2.line(frame,pt_to_tup(ps[p0]),pt_to_tup(ps[p1]),(0,255,0),5);
+        cv2.line(frame,pt_to_tup(ps[p0]),pt_to_tup(ps[p1]),(0,0,255),5);
     
     #Blue for body
     for p0,p1 in body:
@@ -233,7 +234,7 @@ def get_uncrop(img,size,h_cent):
         return (new_x,new_y);
     return uncrop;
 
-def extract_head(img,tl,br,uc,size):
+def extract_area(img,tl,br,uc,size):
     tl_uc = uc(tl);
     br_uc = uc(br);
 
@@ -264,6 +265,7 @@ def score_to_colour(s):
 def plot_exp(conf,true_ps,pred_ps,scores,target,fn,outliers=[],legend=True):
     dis = get_points_dis(true_ps,pred_ps);
     data = np.array([[dis[i],conf[i],scores[i]] for i in range(len(conf)) if i not in outliers]);
+    r = stats.pearsonr(data[:,0],data[:,1]);
     cs = [score_to_colour(s) for s in data[:,2]];
     fig, ax = plt.subplots(dpi=300);
     ax.scatter(data[:,0],data[:,1],c=cs);
@@ -282,11 +284,12 @@ def plot_exp(conf,true_ps,pred_ps,scores,target,fn,outliers=[],legend=True):
     if legend:
         newax = fig.add_axes([0.6, 0.589, 0.18, 0.27], anchor='NE');
     else:
-       newax = fig.add_axes([0.7, 0.589, 0.18, 0.27], anchor='NE'); 
+       newax = fig.add_axes([0.7, 0.589, 0.18, 0.27], anchor='NE');
     newax.set_yticks([]);
     newax.set_xticks([]);
     target = cv2.cvtColor(target,cv2.COLOR_BGR2RGB);
-    newax.imshow(target)
+    newax.imshow(target);
+    ax.text(11.8,0.91,'r = {:.3f}'.format(r[0]),c='r');
     plt.savefig(fn);
     #plt.show()
     
